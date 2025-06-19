@@ -8,7 +8,7 @@ interface Message {
   timestamp: Date;
 }
 
-class MessageService {
+export class MessageService {
   private messages: Map<string, Message[]> = new Map();
 
   sendMessage(content: string, userId: string, roomId: string) {
@@ -28,6 +28,3 @@ class MessageService {
     return message;
   }
 }
-
-
-export default MessageService

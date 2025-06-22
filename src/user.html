@@ -26,6 +26,12 @@
         margin-bottom: 10px;
         background: #f9f9f9;
       }
+      .typing-indicator {
+        padding: 5px 10px;
+        color: #666;
+        font-style: italic;
+        min-height: 20px;
+      }
       .input-group {
         display: flex;
         gap: 10px;
@@ -66,17 +72,27 @@
   </head>
   <body>
     <h1>Socket.io Test</h1>
-    
+
     <!-- Login Form -->
     <div id="loginForm" class="login-form">
       <h3>Join Chat</h3>
       <div class="form-group">
         <label for="usernameInput">Username:</label>
-        <input type="text" id="usernameInput" placeholder="Enter your username" value="">
+        <input
+          type="text"
+          id="usernameInput"
+          placeholder="Enter your username"
+          value=""
+        />
       </div>
       <div class="form-group">
         <label for="userIdInput">User ID (optional):</label>
-        <input type="text" id="userIdInput" placeholder="Leave empty for auto-generated ID" value="">
+        <input
+          type="text"
+          id="userIdInput"
+          placeholder="Leave empty for auto-generated ID"
+          value=""
+        />
       </div>
       <button onclick="connectToChat()">Connect to Chat</button>
     </div>
@@ -85,8 +101,15 @@
     <div id="chatContainer" class="chat-container">
       <div id="connectionStatus"></div>
       <div id="messages" class="messages"></div>
+      <div id="typingIndicator" class="typing-indicator"></div>
       <div class="input-group">
-        <input type="text" id="messageInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+        <input
+          type="text"
+          id="messageInput"
+          placeholder="Type your message..."
+          onkeypress="handleKeyPress(event)"
+          oninput="handleTyping()"
+        />
         <button onclick="sendMessage()">Send Message</button>
       </div>
     </div>
@@ -95,16 +118,37 @@
       let socket = null;
       let currentUserId = null;
       let currentUsername = null;
+      let typingTimer = null;
+      let isTyping = false;
+      let typingUsers = new Map(); // Changed to Map to store userId -> username
 
       // Generate a random user ID
       function generateUserId() {
-        return 'user_' + Math.random().toString(36).substr(2, 9);
+        return "user_" + Math.random().toString(36).substr(2, 9);
       }
 
       // Generate a random username (fallback)
       function generateUsername() {
-        const adjectives = ['Happy', 'Cool', 'Swift', 'Bright', 'Bold', 'Quick', 'Smart', 'Brave'];
-        const nouns = ['Cat', 'Dog', 'Eagle', 'Tiger', 'Wolf', 'Fox', 'Bear', 'Lion'];
+        const adjectives = [
+          "Happy",
+          "Cool",
+          "Swift",
+          "Bright",
+          "Bold",
+          "Quick",
+          "Smart",
+          "Brave",
+        ];
+        const nouns = [
+          "Cat",
+          "Dog",
+          "Eagle",
+          "Tiger",
+          "Wolf",
+          "Fox",
+          "Bear",
+          "Lion",
+        ];
         const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
         const noun = nouns[Math.floor(Math.random() * nouns.length)];
         return adj + noun + Math.floor(Math.random() * 1000);
@@ -112,12 +156,14 @@
 
       // Connect to chat
       function connectToChat() {
-        const usernameInput = document.getElementById("usernameInput").value.trim();
+        const usernameInput = document
+          .getElementById("usernameInput")
+          .value.trim();
         const userIdInput = document.getElementById("userIdInput").value.trim();
 
         // Set username (use input or generate one)
         currentUsername = usernameInput || generateUsername();
-        
+
         // Set user ID (use input or generate one)
         currentUserId = userIdInput || generateUserId();
 
@@ -130,8 +176,10 @@
       }
 
       function initializeSocket() {
-        addMessage(`🔄 Connecting as ${currentUsername} (ID: ${currentUserId})...`);
-        
+        addMessage(
+          `🔄 Connecting as ${currentUsername} (ID: ${currentUserId})...`
+        );
+
         socket = io("http://localhost:3001", {
           query: {
             userId: currentUserId,
@@ -140,8 +188,10 @@
         });
 
         socket.on("connect", () => {
-          addMessage(`✅ Connected as ${currentUsername} (ID: ${currentUserId})!`);
-          
+          addMessage(
+            `✅ Connected as ${currentUsername} (ID: ${currentUserId})!`
+          );
+
           // Join the general room after connecting
           socket.emit("joinRoom", "general");
           addMessage(`📝 Joining room: general`);
@@ -158,7 +208,9 @@
 
         socket.on("newMessage", (message) => {
           console.log(message);
-          addMessage(`💬 <strong>${message.username}:</strong> ${message.content}`);
+          addMessage(
+            `💬 <strong>${message.username}:</strong> ${message.content}`
+          );
         });
 
         socket.on("userJoined", (data) => {
@@ -168,6 +220,55 @@
         socket.on("userLeft", (data) => {
           addMessage(`👋 ${data.username} left the room`);
         });
+
+        // Listen for typing events
+        socket.on("userTyping", (data) => {
+          if (data.username !== currentUsername) {
+            console.log(data.username)
+            typingUsers.add(data.username);
+            updateTypingIndicator();
+
+            // Remove user from typing list after 3 seconds
+            setTimeout(() => {
+              typingUsers.delete(data.username);
+              updateTypingIndicator();
+            }, 3000);
+          }
+        });
+      }
+
+      // Update typing indicator display
+      function updateTypingIndicator() {
+        const typingIndicator = document.getElementById("typingIndicator");
+        if (typingUsers.size === 0) {
+          typingIndicator.textContent = "";
+        } else if (typingUsers.size === 1) {
+          typingIndicator.textContent = `${
+            Array.from(typingUsers)[0]
+          } is typing...`;
+        } else if (typingUsers.size === 2) {
+          typingIndicator.textContent = `${Array.from(typingUsers).join(
+            " and "
+          )} are typing...`;
+        } else {
+          typingIndicator.textContent = `${typingUsers.size} people are typing...`;
+        }
+      }
+
+      // Handle typing events
+      function handleTyping() {
+        if (!isTyping) {
+          isTyping = true;
+          socket.emit("startTyping", "general");
+        }
+
+        // Clear existing timer
+        clearTimeout(typingTimer);
+
+        // Set a new timer to stop typing after 1 second of inactivity
+        typingTimer = setTimeout(() => {
+          isTyping = false;
+        }, 1000);
       }
 
       // Add message to the chat display
@@ -181,13 +282,20 @@
       function sendMessage() {
         const messageInput = document.getElementById("messageInput");
         const content = messageInput.value.trim();
-        
+
         if (content && socket) {
           socket.emit("sendMessage", {
             content: content,
-            roomId: "general"
+            roomId: "general",
           });
           messageInput.value = ""; // Clear the input
+
+          // Reset typing state
+          if (isTyping) {
+            isTyping = false;
+            socket.emit("stopTyping", "general");
+          }
+          clearTimeout(typingTimer);
         }
       }
 
@@ -199,7 +307,7 @@
       }
 
       // Set random default values on page load
-      window.onload = function() {
+      window.onload = function () {
         document.getElementById("usernameInput").value = generateUsername();
         document.getElementById("userIdInput").value = generateUserId();
       };

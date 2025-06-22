@@ -1,10 +1,10 @@
 import { Server, Socket } from "socket.io";
-import { RoomService } from "../services/roomService";
 import { MessageService } from "../services/messageService";
+import { RoomService } from "../services/roomService";
 import {
-  ServerToClientEvents,
   ClientToServerEvents,
   InterServerEvents,
+  ServerToClientEvents,
   SocketData,
 } from "../types/socket";
 
@@ -98,6 +98,24 @@ class SocketHandler {
           timestamp: message.timestamp,
           username: socket.data.username,
         });
+      } catch (error) {}
+    });
+
+    socket.on("startTyping", async (roomId) => {
+      try {
+        this.io.to(roomId).emit("userTyping", {
+          userId: socket.data.userId,
+          username: socket.data.username,
+          roomId,
+        });
+      } catch (error) {}
+    });
+
+    socket.on("stopTyping", async (roomId) => {
+      try {
+        this.io
+          .to(roomId)
+          .emit("userStoppedTyping", { userId: socket.data.userId, roomId });
       } catch (error) {}
     });
   }

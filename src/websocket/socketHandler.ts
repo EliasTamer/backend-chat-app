@@ -32,7 +32,6 @@ class SocketHandler {
   }
 
   handleConnection(socket: TypedSocket): void {
-    console.log("socket connected " + socket.id);
     this.initializeSocket(socket);
     this.registerEventHandler(socket);
   }
@@ -87,8 +86,6 @@ class SocketHandler {
           socket.data.userId,
           roomId
         );
-
-        console.log(message);
 
         this.io.to(roomId).emit("newMessage", {
           roomId,

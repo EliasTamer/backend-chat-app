@@ -3,6 +3,7 @@ import cors from "cors";
 import { Server } from "socket.io";
 import { createServer } from "http";
 import SocketHandler from "./websocket/socketHandler";
+import authRoutes from "./routes/authRoutes";
 
 const app = express();
 const httpServer = createServer(app);
@@ -32,6 +33,9 @@ app.get("/status", (req, res) => {
     timestamp: new Date(),
   });
 });
+
+app.use("/auth", authRoutes);
+
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

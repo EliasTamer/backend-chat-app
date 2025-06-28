@@ -5,6 +5,7 @@ import { createServer } from "http";
 import SocketHandler from "./websocket/socketHandler";
 import authRoutes from "./routes/authRoutes";
 import roomRoutes from "./routes/roomRoutes";
+import messageRoutes from "./routes/messageRoutes";
 
 const app = express();
 const httpServer = createServer(app);
@@ -37,6 +38,7 @@ app.get("/status", (req, res) => {
 
 app.use("/auth", authRoutes);
 app.use("/room", roomRoutes);
+app.use("/message", messageRoutes);
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

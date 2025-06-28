@@ -4,6 +4,7 @@ import { Server } from "socket.io";
 import { createServer } from "http";
 import SocketHandler from "./websocket/socketHandler";
 import authRoutes from "./routes/authRoutes";
+import roomRoutes from "./routes/roomRoutes";
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,7 +36,7 @@ app.get("/status", (req, res) => {
 });
 
 app.use("/auth", authRoutes);
-
+app.use("/room", roomRoutes);
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

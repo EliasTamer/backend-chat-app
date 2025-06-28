@@ -29,7 +29,7 @@ export const getUsersController = async (
   next: NextFunction
 ) => {
   try {
-    const [result] = await db.query("SELECT username, email From Users");
+    const [result] = await db.query("SELECT id, username, email From User");
     res.status(201).json({ data: result });
   } catch (error) {
     next(error);

@@ -31,7 +31,7 @@ export const joinRoomController = async (
     const { user_id, room_id } = req.body;
 
     const [result] = await db.query(
-      `insert into UserChatRooms (user_id, room_id) values(?, ?) `,
+      `insert into UserChatRooms (user_id, room_id) values(?, ?)`,
       [user_id, room_id]
     );
 
@@ -60,6 +60,22 @@ export const getJoinedRooms = async (
     res
       .status(201)
       .json({ message: "user rooms fetched successfuly!", data: result });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllRoomsController = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    const [result] = await db.query(`select * from Room`);
+
+    res
+      .status(201)
+      .json({ message: "rooms fetched successfuly!", data: result });
   } catch (error) {
     next(error);
   }

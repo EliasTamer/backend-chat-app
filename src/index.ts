@@ -1,11 +1,11 @@
-import express from "express";
 import cors from "cors";
-import { Server } from "socket.io";
+import express, { NextFunction, Request, Response } from "express";
 import { createServer } from "http";
-import SocketHandler from "./websocket/socketHandler";
+import { Server } from "socket.io";
 import authRoutes from "./routes/authRoutes";
-import roomRoutes from "./routes/roomRoutes";
 import messageRoutes from "./routes/messageRoutes";
+import roomRoutes from "./routes/roomRoutes";
+import SocketHandler from "./websocket/socketHandler";
 
 const app = express();
 const httpServer = createServer(app);
@@ -39,6 +39,15 @@ app.get("/status", (req, res) => {
 app.use("/auth", authRoutes);
 app.use("/room", roomRoutes);
 app.use("/message", messageRoutes);
+
+app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
+  const message = error.message;
+
+  res.status(500).json({
+    Message: message,
+    Success: false,
+  });
+});
 
 const PORT = process.env.PORT || 3001;
 httpServer.listen(PORT, () => {

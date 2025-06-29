@@ -15,7 +15,7 @@
         border-radius: 8px;
         margin-bottom: 20px;
       }
-      .chat-container {
+      .chat-container, .room-container {
         display: none;
       }
       .messages {
@@ -61,12 +61,32 @@
         margin-bottom: 5px;
         font-weight: bold;
       }
-      input[type="text"] {
+      input[type="text"], input[type="password"] {
         width: 100%;
         padding: 8px;
         border: 1px solid #ccc;
         border-radius: 4px;
         box-sizing: border-box;
+      }
+      .room-list {
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #ccc;
+        padding: 10px;
+        margin-bottom: 10px;
+        background: #f9f9f9;
+      }
+      .room-item {
+        padding: 5px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+      }
+      .room-item:last-child {
+        border-bottom: none;
+      }
+      .section {
+        margin-bottom: 20px;
       }
     </style>
   </head>
@@ -74,26 +94,95 @@
     <h1>Socket.io Test</h1>
 
     <div id="loginForm" class="login-form">
-      <h3>Join Chat</h3>
+      <h3>Login</h3>
       <div class="form-group">
-        <label for="usernameInput">Username:</label>
+        <label for="emailInput">Email:</label>
         <input
           type="text"
-          id="usernameInput"
+          id="emailInput"
+          placeholder="Enter your email"
+          value=""
+        />
+      </div>
+      <div class="form-group">
+        <label for="passwordInput">Password:</label>
+        <input
+          type="password"
+          id="passwordInput"
+          placeholder="Enter your password"
+          value=""
+        />
+      </div>
+      <button onclick="loginUser()">Login</button>
+      <p style="text-align: center; margin-top: 10px;">
+        Don't have an account? <a href="#" onclick="showSignup()">Sign up</a>
+      </p>
+    </div>
+
+    <div id="signupForm" class="login-form" style="display: none;">
+      <h3>Sign Up</h3>
+      <div class="form-group">
+        <label for="signupUsernameInput">Username:</label>
+        <input
+          type="text"
+          id="signupUsernameInput"
           placeholder="Enter your username"
           value=""
         />
       </div>
       <div class="form-group">
-        <label for="userIdInput">User ID (optional):</label>
+        <label for="signupEmailInput">Email:</label>
         <input
           type="text"
-          id="userIdInput"
-          placeholder="Leave empty for auto-generated ID"
+          id="signupEmailInput"
+          placeholder="Enter your email"
           value=""
         />
       </div>
-      <button onclick="connectToChat()">Connect to Chat</button>
+      <div class="form-group">
+        <label for="signupPasswordInput">Password:</label>
+        <input
+          type="password"
+          id="signupPasswordInput"
+          placeholder="Enter your password"
+          value=""
+        />
+      </div>
+      <button onclick="signUpUser()">Sign Up</button>
+      <p style="text-align: center; margin-top: 10px;">
+        Already have an account? <a href="#" onclick="showLogin()">Login</a>
+      </p>
+    </div>
+
+    <div id="roomContainer" class="room-container">
+      <div class="section">
+        <h3>Create New Room</h3>
+        <div class="form-group">
+          <label for="roomNameInput">Room Name:</label>
+          <input
+            type="text"
+            id="roomNameInput"
+            placeholder="Enter room name"
+            value=""
+          />
+        </div>
+        <div class="form-group">
+          <label for="roomDescriptionInput">Room Description:</label>
+          <input
+            type="text"
+            id="roomDescriptionInput"
+            placeholder="Enter room description"
+            value=""
+          />
+        </div>
+        <button onclick="createRoom()">Create Room</button>
+      </div>
+
+      <div class="section">
+        <h3>Available Rooms</h3>
+        <div id="roomList" class="room-list"></div>
+        <button onclick="loadRooms()">Refresh Rooms</button>
+      </div>
     </div>
 
     <div id="chatContainer" class="chat-container">
@@ -116,53 +205,243 @@
       let socket = null;
       let currentUserId = null;
       let currentUsername = null;
+      let currentRoomId = null;
       let typingTimer = null;
       let isTyping = false;
       let typingUsers = new Set();
+      let authToken = null;
 
-      function generateUserId() {
-        return "user_" + Math.random().toString(36).substr(2, 9);
-      }
-
-      function generateUsername() {
-        const adjectives = [
-          "Happy",
-          "Cool",
-          "Swift",
-          "Bright",
-          "Bold",
-          "Quick",
-          "Smart",
-          "Brave",
-        ];
-        const nouns = [
-          "Cat",
-          "Dog",
-          "Eagle",
-          "Tiger",
-          "Wolf",
-          "Fox",
-          "Bear",
-          "Lion",
-        ];
-        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
-        const noun = nouns[Math.floor(Math.random() * nouns.length)];
-        return adj + noun + Math.floor(Math.random() * 1000);
-      }
-
-      function connectToChat() {
-        const usernameInput = document
-          .getElementById("usernameInput")
-          .value.trim();
-        const userIdInput = document.getElementById("userIdInput").value.trim();
-
-        currentUsername = usernameInput || generateUsername();
-        currentUserId = userIdInput || generateUserId();
-
+      function showSignup() {
         document.getElementById("loginForm").style.display = "none";
-        document.getElementById("chatContainer").style.display = "block";
+        document.getElementById("signupForm").style.display = "block";
+      }
 
-        initializeSocket();
+      function showLogin() {
+        document.getElementById("signupForm").style.display = "none";
+        document.getElementById("loginForm").style.display = "block";
+      }
+
+      async function signUpUser() {
+        const username = document.getElementById("signupUsernameInput").value.trim();
+        const email = document.getElementById("signupEmailInput").value.trim();
+        const password = document.getElementById("signupPasswordInput").value.trim();
+
+        if (!username || !email || !password) {
+          addMessage("Please fill in all fields");
+          return;
+        }
+
+        try {
+          const response = await fetch('http://localhost:3001/auth/signup', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ username, email, password }),
+          });
+
+          const responseData = await response.json();
+
+          if (response.status === 201) {
+            const userData = responseData.data;
+            addMessage(`Sign up successful! Welcome ${userData.username || username}`);
+            showLogin();
+            document.getElementById("emailInput").value = email;
+          } else {
+            addMessage(`Sign up failed: ${responseData.message || 'Unknown error'}`);
+          }
+        } catch (error) {
+          addMessage(`Sign up error: ${error.message}`);
+        }
+      }
+
+      async function loginUser() {
+        const email = document.getElementById("emailInput").value.trim();
+        const password = document.getElementById("passwordInput").value.trim();
+
+        if (!email || !password) {
+          addMessage("Please enter both email and password");
+          return;
+        }
+
+        try {
+          console.log("Attempting login with:", { email });
+          
+          const response = await fetch('http://localhost:3001/auth/login', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password }),
+          });
+
+          console.log("Response status:", response.status);
+          const responseData = await response.json();
+          console.log("Response data:", responseData);
+
+          if (response.status === 201 || (response.status >= 200 && response.status < 300)) {
+            console.log("Login successful!");
+            
+            const userData = responseData.data;
+            
+            if (!userData || !userData.username) {
+              console.error("Missing required data in response:", responseData);
+              addMessage("Login response missing required data");
+              return;
+            }
+            
+            currentUserId = userData.id || userData._id || userData.userId;
+            currentUsername = userData.username;
+            authToken = userData.token || userData.accessToken || 'dummy-token';
+            
+            console.log("Set user data:", { currentUserId, currentUsername, authToken: authToken ? "present" : "missing" });
+            
+            document.getElementById("loginForm").style.display = "none";
+            console.log("Login form hidden");
+            
+            document.getElementById("roomContainer").style.display = "block";
+            console.log("Room container shown");
+            
+            console.log("Loading rooms...");
+            loadRooms();
+          } else {
+            console.log("Login failed with status:", response.status);
+            addMessage(`Login failed: ${responseData.message || 'Unknown error'}`);
+          }
+        } catch (error) {
+          console.error("Login error:", error);
+          addMessage(`Login error: ${error.message}`);
+        }
+      }
+
+      async function createRoom() {
+        const roomName = document.getElementById("roomNameInput").value.trim();
+        const roomDescription = document.getElementById("roomDescriptionInput").value.trim();
+
+        if (!roomName) {
+          addMessage("Please enter a room name");
+          return;
+        }
+
+        if (!currentUserId) {
+          addMessage("User ID not found. Please login again.");
+          return;
+        }
+
+        try {
+          console.log("Creating room with:", { name: roomName, description: roomDescription, created_by: currentUserId });
+          
+          const response = await fetch('http://localhost:3001/room/createRoom', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ 
+              name: roomName,
+              description: roomDescription || '',
+              created_by: currentUserId
+            }),
+          });
+
+          const responseData = await response.json();
+          console.log("Create room response:", responseData);
+
+          if (response.status === 201) {
+            const roomData = responseData.data;
+            addMessage(`Room created successfully: ${roomData.name || roomName}`);
+            document.getElementById("roomNameInput").value = "";
+            document.getElementById("roomDescriptionInput").value = "";
+            loadRooms();
+          } else {
+            addMessage(`Room creation failed: ${responseData.message || 'Unknown error'}`);
+          }
+        } catch (error) {
+          console.error("Room creation error:", error);
+          addMessage(`Room creation error: ${error.message}`);
+        }
+      }
+
+      async function loadRooms() {
+        try {
+          console.log("Loading all rooms with token:", authToken ? "present" : "missing");
+          
+          const response = await fetch('http://localhost:3001/room/getAllRooms', {
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+            },
+          });
+
+          console.log("Load rooms response status:", response.status);
+          const responseData = await response.json();
+          console.log("Rooms response data:", responseData);
+
+          if (response.status === 201) {
+            const rooms = responseData.data || [];
+            displayRooms(Array.isArray(rooms) ? rooms : []);
+          } else {
+            addMessage(`Failed to load rooms: ${responseData.message || 'Unknown error'}`);
+          }
+        } catch (error) {
+          console.error("Room loading error:", error);
+          addMessage(`Room loading error: ${error.message}`);
+        }
+      }
+
+      function displayRooms(rooms) {
+        const roomList = document.getElementById("roomList");
+        roomList.innerHTML = "";
+
+        rooms.forEach(room => {
+          const roomItem = document.createElement("div");
+          roomItem.className = "room-item";
+          roomItem.innerHTML = `
+            <span>${room.name}</span>
+            <button onclick="joinRoom('${room.id}', '${room.name}')">Join</button>
+          `;
+          roomList.appendChild(roomItem);
+        });
+      }
+
+      async function joinRoom(roomId, roomName) {
+        if (!currentUserId) {
+          addMessage("User ID not found. Please login again.");
+          return;
+        }
+
+        currentRoomId = roomId;
+        
+        try {
+          console.log("Joining room with:", { user_id: currentUserId, room_id: roomId });
+          
+          const response = await fetch('http://localhost:3001/room/joinRoom', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${authToken}`,
+            },
+            body: JSON.stringify({ 
+              user_id: currentUserId,
+              room_id: roomId 
+            }),
+          });
+
+          const responseData = await response.json();
+          console.log("Join room response:", responseData);
+
+          if (response.status === 201) {
+            document.getElementById("roomContainer").style.display = "none";
+            document.getElementById("chatContainer").style.display = "block";
+            
+            addMessage(`Joined room: ${roomName}`);
+            initializeSocket();
+          } else {
+            addMessage(`Failed to join room: ${responseData.message || 'Unknown error'}`);
+          }
+        } catch (error) {
+          console.error("Room join error:", error);
+          addMessage(`Room join error: ${error.message}`);
+        }
       }
 
       function initializeSocket() {
@@ -182,8 +461,8 @@
             `✅ Connected as ${currentUsername} (ID: ${currentUserId})!`
           );
 
-          socket.emit("joinRoom", "general");
-          addMessage(`📝 Joining room: general`);
+          socket.emit("joinRoom", currentRoomId);
+          addMessage(`📝 Joining room: ${currentRoomId}`);
         });
 
         socket.on("disconnect", () => {
@@ -218,7 +497,7 @@
         });
 
         socket.on("userStoppedTyping", (data) => {
-          if (data.roomId === "general") {
+          if (data.roomId === currentRoomId) {
             typingUsers.clear();
             updateTypingIndicator();
           }
@@ -245,7 +524,7 @@
       function handleTyping() {
         if (!isTyping) {
           isTyping = true;
-          socket.emit("startTyping", "general");
+          socket.emit("startTyping", currentRoomId);
         }
 
         clearTimeout(typingTimer);
@@ -253,33 +532,55 @@
         typingTimer = setTimeout(() => {
           if (isTyping) {
             isTyping = false;
-            socket.emit("stopTyping", "general");
+            socket.emit("stopTyping", currentRoomId);
           }
         }, 1000);
       }
 
-      function addMessage(message) {
-        const messagesDiv = document.getElementById("messages");
-        messagesDiv.innerHTML += `<p>${message}</p>`;
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-      }
-
-      function sendMessage() {
+      async function sendMessage() {
         const messageInput = document.getElementById("messageInput");
         const content = messageInput.value.trim();
 
-        if (content && socket) {
-          socket.emit("sendMessage", {
-            content: content,
-            roomId: "general",
-          });
-          messageInput.value = "";
-
-          if (isTyping) {
-            isTyping = false;
-            socket.emit("stopTyping", "general");
+        if (content) {
+          if (!currentUserId || !currentRoomId) {
+            addMessage("Missing user or room information. Please rejoin the room.");
+            return;
           }
-          clearTimeout(typingTimer);
+
+          try {
+            console.log("Sending message with:", { room_id: currentRoomId, user_id: currentUserId, message: content });
+            
+            const response = await fetch('http://localhost:3001/message/sendMessage', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`,
+              },
+              body: JSON.stringify({ 
+                room_id: currentRoomId,
+                user_id: currentUserId,
+                message: content
+              }),
+            });
+
+            const responseData = await response.json();
+            console.log("Send message response:", responseData);
+
+            if (response.status === 201) {
+              messageInput.value = "";
+              
+              if (isTyping) {
+                isTyping = false;
+                socket.emit("stopTyping", currentRoomId);
+              }
+              clearTimeout(typingTimer);
+            } else {
+              addMessage(`Failed to send message: ${responseData.message || 'Unknown error'}`);
+            }
+          } catch (error) {
+            console.error("Message send error:", error);
+            addMessage(`Message send error: ${error.message}`);
+          }
         }
       }
 
@@ -289,10 +590,37 @@
         }
       }
 
-      window.onload = function () {
-        document.getElementById("usernameInput").value = generateUsername();
-        document.getElementById("userIdInput").value = generateUserId();
-      };
+      function addMessage(message) {
+        const messagesDiv = document.getElementById("messages");
+        const roomContainer = document.getElementById("roomContainer");
+        
+        if (roomContainer && roomContainer.style.display === "block" && !messagesDiv) {
+          let tempMessages = document.getElementById("tempMessages");
+          if (!tempMessages) {
+            tempMessages = document.createElement("div");
+            tempMessages.id = "tempMessages";
+            tempMessages.style.border = "1px solid #ccc";
+            tempMessages.style.padding = "10px";
+            tempMessages.style.marginBottom = "10px";
+            tempMessages.style.maxHeight = "200px";
+            tempMessages.style.overflow = "auto";
+            tempMessages.style.background = "#f9f9f9";
+            roomContainer.insertBefore(tempMessages, roomContainer.firstChild);
+          }
+          tempMessages.innerHTML += `<p>${message}</p>`;
+          tempMessages.scrollTop = tempMessages.scrollHeight;
+          console.log("Message added to temp area:", message);
+          return;
+        }
+        
+        if (!messagesDiv) {
+          console.log("Messages div not found, logging to console:", message);
+          return;
+        }
+        
+        messagesDiv.innerHTML += `<p>${message}</p>`;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
     </script>
   </body>
 </html>
